@@ -1,7 +1,7 @@
 package Log::Dispatch::Perl;
 use base 'Log::Dispatch::Output';
 
-$VERSION= '0.04';
+our $VERSION = '0.05';
 
 # be as strict and verbose as possible
 use strict;
