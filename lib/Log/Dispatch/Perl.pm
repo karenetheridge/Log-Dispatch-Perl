@@ -4,10 +4,13 @@ use base 'Log::Dispatch::Output';
 # Make sure we have version info for this module
 # Be strict from now on
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 use strict;
 
-# Initialize the level name to number conversion and vice versa at compile time
+# Initialize the level name to number conversion
+# Initialize the level number to name conversion
+# At compile time
+#  Set the hashes using a temporary array
 
 my %LEVEL2NUM;
 my %NUM2LEVEL;
@@ -30,10 +33,20 @@ BEGIN {
 } #BEGIN
 
 # Initialize the Perl function dispatcher at compile time
+# At compile time
+#  Set flag whether we have Carp already
+#  If a newer version of Perl
+#   Set Carp's hash indication which modules not to report
 
 my %ACTION2CODE;
 BEGIN {
     my $havecarp = defined $Carp::VERSION;
+    unless ($] < 5.008) {
+        $Carp::Internal{$_} = 1 foreach ('Log::Dispatch','Log::Dispatch::Output' );
+    }
+
+#  Initialize the action to actual code hash
+
     %ACTION2CODE = (
 
      ''         => sub { undef },
@@ -44,14 +57,24 @@ BEGIN {
                           goto &Carp::carp;
                     },
 
-     cluck      => sub { $havecarp ||= require Carp;
-                         (my $message = Carp::longmess()) =~ s#^(?:.*?\n){4}##s;
-                         CORE::warn( $_[0].$message );
+     cluck      => $] < 5.008 ?
+                    sub { $havecarp ||= require Carp;
+                          (my $m = Carp::longmess())
+                           =~ s#\s+Log::Dispatch::[^\n]+\n##sg;
+                          CORE::warn $_[0].$m;
+                    } :
+                    sub { $havecarp ||= require Carp;
+                          CORE::warn $_[0].Carp::longmess();
                     },
 
-     confess    => sub { $havecarp ||= require Carp;
-                         (my $message = Carp::longmess()) =~ s#^(?:.*?\n){4}##s;
-                         CORE::die( $_[0].$message );
+     confess    => $] < 5.008 ?
+                    sub { $havecarp ||= require Carp;
+                          (my $m = Carp::longmess())
+                           =~ s#\s+Log::Dispatch::[^\n]+\n##sg;
+                          CORE::die $_[0].$m;
+                    } :
+                    sub { $havecarp ||= require Carp;
+                          CORE::die $_[0].Carp::longmess();
                     },
 
      croak      => $havecarp ? \&Carp::croak :
@@ -133,7 +156,10 @@ sub new {
 #---------------------------------------------------------------------------
 # log_message
 #
-# Required by Log::Dispatch::Output.
+# Required by Log::Dispatch.  Log a single message.
+#
+#  IN: 1 instantiated Log::Dispatch::Perl object
+#      2..N hash with parameters as required by Log::Dispatch
 
 sub log_message {
 
@@ -168,7 +194,7 @@ __END__
 
 =head1 NAME
 
-Log::Dispatch::Perl - use core Perl functions for logging
+Log::Dispatch::Perl - Use core Perl functions for logging
 
 =head1 SYNOPSIS
 

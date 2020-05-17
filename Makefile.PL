@@ -7,7 +7,7 @@ eval "use Devel::Required";
 WriteMakefile (
  NAME		=> "Log::Dispatch::Perl",
  AUTHOR		=> 'Elizabeth Mattijsen (liz@dijkmat.nl)',
- ABSTRACT	=> 'Log::Dispatch::Perl - use core Perl functions for logging',
+ ABSTRACT	=> 'Log::Dispatch::Perl - Use core Perl functions for logging',
  VERSION_FROM	=> 'lib/Log/Dispatch/Perl.pm',
 
  PREREQ_PM	=> {qw(
