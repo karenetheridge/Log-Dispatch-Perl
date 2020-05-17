@@ -1,3 +1,8 @@
+0.04	6 April 2012
+	Brought up to the latest code esthetics.  Stopped doing unneccessary
+	BEGIN block magic.  Verifies it runs on 5.14.2, threaded and unthreaded.
+	Added LICENSE parameter to allow MetaCPAN to show license info.
+
 0.03	1 February 2004
 	Changed internal workings to use %Carp::Internal to indicate module
 	names that shouldn't be listed in a traceback.  As per suggestion of

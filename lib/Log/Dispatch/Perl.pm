@@ -1,21 +1,17 @@
 package Log::Dispatch::Perl;
 use base 'Log::Dispatch::Output';
 
-# Make sure we have version info for this module
-# Be strict from now on
+$VERSION= '0.04';
 
-$VERSION = '0.03';
+# be as strict and verbose as possible
 use strict;
+use warnings;
 
-# Initialize the level name to number conversion
-# Initialize the level number to name conversion
-# At compile time
-#  Set the hashes using a temporary array
-
+# initialize level name / number conversion hashes
 my %LEVEL2NUM;
 my %NUM2LEVEL;
-BEGIN {
-    my @level2num = (
+do {
+    my @level2num= (
      debug      => 0,
      info       => 1,
      notice     => 2,
@@ -28,73 +24,74 @@ BEGIN {
      emergency  => 7,
      emerg      => 7, # MUST be after "emergency"
     );
-    %LEVEL2NUM = @level2num;
-    %NUM2LEVEL = reverse @level2num; # order fixes double assignments
-} #BEGIN
+    %LEVEL2NUM= @level2num;
+    %NUM2LEVEL= reverse @level2num; # order fixes double assignments
+};
 
-# Initialize the Perl function dispatcher at compile time
-# At compile time
-#  Set flag whether we have Carp already
-#  If a newer version of Perl
-#   Set Carp's hash indication which modules not to report
+# hide ourselves from Carp
+my $havecarp= defined $Carp::VERSION;
+unless ( $] < 5.008 ) {
+    $Carp::Internal{$_}= 1 foreach ( 'Log::Dispatch', 'Log::Dispatch::Output' );
+}
 
+#  action to actual code hash
 my %ACTION2CODE;
-BEGIN {
-    my $havecarp = defined $Carp::VERSION;
-    unless ($] < 5.008) {
-        $Carp::Internal{$_} = 1 foreach ('Log::Dispatch','Log::Dispatch::Output' );
-    }
+%ACTION2CODE= (
+  ''      => sub { undef },
 
-#  Initialize the action to actual code hash
+  carp    => $havecarp
+               ? \&Carp::carp
+               : sub {
+                     $havecarp ||= require Carp;
+                     $ACTION2CODE{carp}= \&Carp::carp;
+                     goto &Carp::carp;
+                 },
 
-    %ACTION2CODE = (
+  cluck   => $] < 5.008
+               ? sub {
+                     $havecarp ||= require Carp;
+                     ( my $m= Carp::longmess() )
+                       =~ s#\s+Log::Dispatch::[^\n]+\n##sg;
+                     return CORE::warn $_[0] . $m;
+                 }
+               : sub {
+                     $havecarp ||= require Carp;
+                     return CORE::warn $_[0] . Carp::longmess();
+                 },
 
-     ''         => sub { undef },
+  confess => $] < 5.008
+               ? sub {
+                     $havecarp ||= require Carp;
+                     ( my $m = Carp::longmess() )
+                       =~ s#\s+Log::Dispatch::[^\n]+\n##sg;
+                     return CORE::die $_[0] . $m;
+                 }
+               : sub {
+                     $havecarp ||= require Carp;
+                     return CORE::die $_[0] . Carp::longmess();
+                 },
 
-     carp       => $havecarp ? \&Carp::carp :
-                    sub { require Carp;
-                          $ACTION2CODE{'carp'} = \&Carp::carp;
-                          goto &Carp::carp;
-                    },
+  croak   => $havecarp
+               ? \&Carp::croak
+               : sub {
+                     $havecarp ||= require Carp;
+                     $ACTION2CODE{croak}= \&Carp::croak;
+                     goto &Carp::croak;
+                 },
 
-     cluck      => $] < 5.008 ?
-                    sub { $havecarp ||= require Carp;
-                          (my $m = Carp::longmess())
-                           =~ s#\s+Log::Dispatch::[^\n]+\n##sg;
-                          CORE::warn $_[0].$m;
-                    } :
-                    sub { $havecarp ||= require Carp;
-                          CORE::warn $_[0].Carp::longmess();
-                    },
+  die     => sub { CORE::die @_ },
 
-     confess    => $] < 5.008 ?
-                    sub { $havecarp ||= require Carp;
-                          (my $m = Carp::longmess())
-                           =~ s#\s+Log::Dispatch::[^\n]+\n##sg;
-                          CORE::die $_[0].$m;
-                    } :
-                    sub { $havecarp ||= require Carp;
-                          CORE::die $_[0].Carp::longmess();
-                    },
+  warn    => sub { CORE::warn @_ },
+);
 
-     croak      => $havecarp ? \&Carp::croak :
-                    sub {
-                        require Carp;
-                        $ACTION2CODE{'croak'} = \&Carp::croak;
-                        goto &Carp::croak;
-                    },
-
-     die        => sub { CORE::die @_ },
-
-     warn       => sub { CORE::warn @_ },
-    );
-} #BEGIN
-
-# Satisfy require
-
+# satisfy require
 1;
 
-#---------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#
+# Class methods
+#
+#-------------------------------------------------------------------------------
 # new
 #
 # Required by Log::Dispatch::Output.  Creates a new Log::Dispatch::Perl
@@ -102,58 +99,56 @@ BEGIN {
 #
 #  IN: 1 class
 #      2..N parameters as a hash
+# OUT: 1 instantiated object
 
 sub new {
+    my ( $class, %param )= @_;
 
-# Obtain the parameters
-# Create an object
-# Do the basic initializations
+    # do the basic initializations
+    my $self= bless {}, ref $class || $class;
+    $self->_basic_init( %param );
 
-    my ($class,%p) = @_;
-    my $self = bless {},ref $class || $class;
-    $self->_basic_init( %p );
-
-# If there are any actions specified
-#  For all of the actions specified
-#   Initialize number of warnings
-#   Convert numeric level to name if it is a number
-#   Warn if an unknown level specified
-#   Warn if an unknown action specified
-#   Set action for this level if no warnings
-
+    # we have specific actions specified
     my @action;
-    if (exists $p{'action'}) {
-        while (my ($level,$action) = each %{$p{'action'}}) {
+    if ( my $actions= $param{action} ) {
+
+        # check all actions specified
+        foreach my $level ( keys %{$actions} ) {
+            my $action= $actions->{$level};
+            $level= $NUM2LEVEL{$level} if exists $NUM2LEVEL{$level};
+
+            # sanity check, store if ok
             my $warn;
-            $level = $NUM2LEVEL{$level} if exists $NUM2LEVEL{$level};
             warn qq{"$level" is an unknown logging level, ignored\n"}, $warn++
-             unless exists $LEVEL2NUM{$level || ''};
+              if !exists $LEVEL2NUM{ $level || '' };
             warn qq{"$action" is an unknown Perl action, ignored\n"}, $warn++
-             unless exists $ACTION2CODE{$action || ''};
-            $action[$LEVEL2NUM{$level}] = $ACTION2CODE{$action || ''}
-             unless $warn;
+              if !exists $ACTION2CODE{$action};
+            $action[$LEVEL2NUM{$level}]= $ACTION2CODE{$action}
+              if !$warn;
         }
     }
 
-# Set the actions that have not yet been specified
-
+    # set the actions that have not yet been specified
     $action[0] ||= $ACTION2CODE{''};
     $action[1] ||= $ACTION2CODE{''};
-    $action[2] ||= $ACTION2CODE{'warn'};
-    $action[3] ||= $ACTION2CODE{'warn'};
-    $action[4] ||= $ACTION2CODE{'die'};
-    $action[5] ||= $ACTION2CODE{'die'};
-    $action[6] ||= $ACTION2CODE{'confess'};
-    $action[7] ||= $ACTION2CODE{'confess'};
+    $action[2] ||= $ACTION2CODE{warn};
+    $action[3] ||= $ACTION2CODE{warn};
+    $action[4] ||= $ACTION2CODE{die};
+    $action[5] ||= $ACTION2CODE{die};
+    $action[6] ||= $ACTION2CODE{confess};
+    $action[7] ||= $ACTION2CODE{confess};
 
-# Save this setting
-# Return the instantiated object
+    # save this setting
+    $self->{action}= \@action;
 
-    $self->{'action'} = \@action;
-    $self;
+    return $self;
 } #new
 
-#---------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#
+# Instance methods
+#
+#-------------------------------------------------------------------------------
 # log_message
 #
 # Required by Log::Dispatch.  Log a single message.
@@ -162,33 +157,26 @@ sub new {
 #      2..N hash with parameters as required by Log::Dispatch
 
 sub log_message {
+    my ( $self, %param )= @_;
 
-# Obtain the parameters
-# Obtain the level
-# Return now unless we know what to do with it
+    # huh?
+    my $level= $param{level};
+    return if !exists $LEVEL2NUM{$level} and !exists $NUM2LEVEL{$level};
 
-    my ($self,%p) = @_;
-    my $level = $p{'level'};
-    return unless exists $LEVEL2NUM{$level} or exists $NUM2LEVEL{$level};
+    # obtain level number
+    my $num= $LEVEL2NUM{$level};
+    $num= $level if !defined $num;  # //=
 
-# Obtain the level number
-# Assume level numeric if not obtained yet (would love to use // here ;-)
+    # set message
+    my $message= $param{message};
+    $message .= "\n" if substr( $message, -1, 1 ) ne "\n";
+    @_= ($message);
 
-    my $num = $LEVEL2NUM{$level};
-    $num = $level unless defined $num;
-
-# Obtain the message
-# Make sure there's a newline after it
-# Set it as _the_ parameter
-# Call the appropriate handler on the same level on the stack
-
-    my $message = $p{'message'};
-    $message .= "\n" unless substr( $message,-1,1 ) eq "\n";
-    @_ = ($message);
-    goto &{$self->{'action'}->[$num]};
+    # log it the right way
+    goto &{$self->{action}->[$num]};
 } #log_message
 
-#---------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 __END__
 
@@ -216,6 +204,10 @@ Log::Dispatch::Perl - Use core Perl functions for logging
  ) );
 
  $dispatcher->warning( "This is a warning" );
+
+=head1 VERSION
+
+This documentation describes version 0.04.
 
 =head1 DESCRIPTION
 
@@ -246,8 +238,8 @@ B<not> halt execution.
 
 =head2 confess
 
-Indicates a "confess" action should be executed.  See L<Carp/"confess">.  Does
-B<not> halt execution.
+Indicates a "confess" action should be executed.  See L<Carp/"confess">.  Halts
+execution.
 
 =head2 croak
 
@@ -276,7 +268,7 @@ Please report bugs to <perlbugs@dijkmat.nl>.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
+Copyright (c) 2004, 2012 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
 reserved.  This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 
