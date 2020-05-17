@@ -1,5 +1,7 @@
 Revision history for Log-Dispatch-Perl
 
+{{$NEXT}}
+
 0.05      2020-05-17 22:51:31Z
         - release back to cpan, with updated distribution tooling
 
