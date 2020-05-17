@@ -4,8 +4,7 @@ use base 'Log::Dispatch::Output';
 # Make sure we have version info for this module
 # Be strict from now on
 
-$VERSION = '0.01';
-@CARP_NOT = ('Log::Dispatch::Output','Log::Dispatch');
+$VERSION = '0.02';
 use strict;
 
 # Initialize the level name to number conversion and vice versa at compile time
@@ -45,18 +44,14 @@ BEGIN {
                           goto &Carp::carp;
                     },
 
-     cluck      => $havecarp ? \&Carp::cluck :
-                    sub {
-                        require Carp;
-                        $ACTION2CODE{'cluck'} = \&Carp::cluck;
-                        goto &Carp::cluck;
+     cluck      => sub { $havecarp ||= require Carp;
+                         (my $message = Carp::longmess()) =~ s#^(?:.*?\n){4}##s;
+                         CORE::warn( $_[0].$message );
                     },
 
-     confess    => $havecarp ? \&Carp::confess :
-                    sub {
-                        require Carp;
-                        $ACTION2CODE{'confess'} = \&Carp::confess;
-                        goto &Carp::confess;
+     confess    => sub { $havecarp ||= require Carp;
+                         (my $message = Carp::longmess()) =~ s#^(?:.*?\n){4}##s;
+                         CORE::die( $_[0].$message );
                     },
 
      croak      => $havecarp ? \&Carp::croak :

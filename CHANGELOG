@@ -1,2 +1,7 @@
+0.02	29 January 2004
+	Fixed problem with extra lines in "cluck" and "confess" types of
+	handling.  All intermediate levels in Log::Dispatch::xxx modules
+	are now removed.
+
 0.01	28 January 2004
 	First version of Log::Dispatch::Perl.
