@@ -1,5 +1,8 @@
 Revision history for Log-Dispatch-Perl
 
+{{$NEXT}}
+        - release back to cpan, with updated distribution tooling
+
 0.04    2012-04-06
 	Brought up to the latest code esthetics.  Stopped doing unneccessary
 	BEGIN block magic.  Verifies it runs on 5.14.2, threaded and unthreaded.

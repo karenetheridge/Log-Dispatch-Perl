@@ -1,0 +1,6 @@
+/.ackrc
+/.build/
+!/.gitignore
+/.latest
+/Log-Dispatch-Perl-*/
+/Log-Dispatch-Perl-*.tar.gz

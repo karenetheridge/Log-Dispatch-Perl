@@ -1,4 +1,6 @@
 package Log::Dispatch::Perl;
+# ABSTRACT: Use core Perl functions for logging
+
 use base 'Log::Dispatch::Output';
 
 our $VERSION = '0.05';
@@ -180,9 +182,7 @@ sub log_message {
 
 __END__
 
-=head1 NAME
-
-Log::Dispatch::Perl - Use core Perl functions for logging
+=pod
 
 =head1 SYNOPSIS
 
@@ -204,10 +204,6 @@ Log::Dispatch::Perl - Use core Perl functions for logging
  ) );
 
  $dispatcher->warning( "This is a warning" );
-
-=head1 VERSION
-
-This documentation describes version 0.04.
 
 =head1 DESCRIPTION
 
@@ -255,21 +251,5 @@ execution.
 
 Indicates a "warn" action should be executed.  See L<perlfunc/"warn">.  Does
 B<not> halt execution.
-
-=head1 REQUIRED MODULES
-
- Log::Dispatch (1.16)
-
-=head1 AUTHOR
-
-Elizabeth Mattijsen, <liz@dijkmat.nl>.
-
-Please report bugs to <perlbugs@dijkmat.nl>.
-
-=head1 COPYRIGHT
-
-Copyright (c) 2004, 2012 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
-reserved.  This program is free software; you can redistribute it and/or
-modify it under the same terms as Perl itself.
 
 =cut
